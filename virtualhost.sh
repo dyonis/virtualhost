@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# Installation sudo ln -s /home/den/bin/a2host.sh /usr/local/bin/a2host
+# Usage sudo a2host [create | delete] [domain] [optional host_dir]
+
 ### Set Language
 TEXTDOMAIN=virtualhost
 
@@ -21,6 +25,13 @@ if [ "$(whoami)" != 'root' ]; then
 		exit 1;
 fi
 
+
+if ! [ -d $userDir ]; then
+	echo -e $"Directory $userDir does not exists. Configure it in the $0"
+	exit 1;
+fi		
+
+
 if [ "$action" != 'create' ] && [ "$action" != 'delete' ]
 	then
 		echo $"You need to prompt for action (create or delete) -- Lower-case only"
@@ -29,26 +40,32 @@ fi
 
 while [ "$domain" == "" ]
 do
-	echo -e $"Please provide domain. e.g.dev,staging"
+	echo -e $"Please provide domain. e.g. site.test"
 	read domain
 done
 
 if [ "$rootDir" == "" ]; then
-	rootDir=${domain//./}
+	rootDir=$userDir$domain
+	
+else
+	if [ "$rootDir" == "." ]; then
+		rootDir="$(pwd)";
+	fi
 fi
-
-### if root dir starts with '/', don't use /var/www as default starting point
-if [[ "$rootDir" =~ ^/ ]]; then
-	userDir=''
-fi
-
-rootDir=$userDir$rootDir
 
 if [ "$action" == 'create' ]
 	then
 		### check if domain already exists
 		if [ -e $sitesAvailabledomain ]; then
 			echo -e $"This domain already exists.\nPlease Try Another one"
+			exit;
+		fi
+
+		### confirm root directory
+		echo "Is root dir $rootDir correct [Y/n]?"
+		read answer
+
+		if [ "$answer" != 'y' -a "$answer" != 'Y' ]; then
 			exit;
 		fi
 
@@ -70,23 +87,23 @@ if [ "$action" == 'create' ]
 
 		### create virtual host rules file
 		if ! echo "
-		<VirtualHost *:80>
-			ServerAdmin $email
-			ServerName $domain
-			ServerAlias $domain
-			DocumentRoot $rootDir
-			<Directory />
-				AllowOverride All
-			</Directory>
-			<Directory $rootDir>
-				Options Indexes FollowSymLinks MultiViews
-				AllowOverride all
-				Require all granted
-			</Directory>
-			ErrorLog /var/log/apache2/$domain-error.log
-			LogLevel error
-			CustomLog /var/log/apache2/$domain-access.log combined
-		</VirtualHost>" > $sitesAvailabledomain
+<VirtualHost *:80>
+	ServerAdmin $email
+	ServerName $domain
+	ServerAlias $domain
+	DocumentRoot $rootDir
+	<Directory />
+		AllowOverride All
+	</Directory>
+	<Directory $rootDir>
+		Options Indexes FollowSymLinks MultiViews
+		AllowOverride all
+		Require all granted
+	</Directory>
+	ErrorLog /var/log/apache2/$domain-error.log
+	LogLevel error
+	CustomLog /var/log/apache2/$domain-access.log combined
+</VirtualHost>" > $sitesAvailabledomain
 		then
 			echo -e $"There is an ERROR creating $domain file"
 			exit;
@@ -101,17 +118,6 @@ if [ "$action" == 'create' ]
 			exit;
 		else
 			echo -e $"Host added to /etc/hosts file \n"
-		fi
-
-		### Add domain in /mnt/c/Windows/System32/drivers/etc/hosts (Windows Subsytem for Linux)
-		if [ -e /mnt/c/Windows/System32/drivers/etc/hosts ]
-		then
-			if ! echo -e "\r127.0.0.1       $domain" >> /mnt/c/Windows/System32/drivers/etc/hosts
-			then
-				echo $"ERROR: Not able to write in /mnt/c/Windows/System32/drivers/etc/hosts (Hint: Try running Bash as administrator)"
-			else
-				echo -e $"Host added to /mnt/c/Windows/System32/drivers/etc/hosts file \n"
-			fi
 		fi
 
 		if [ "$owner" == "" ]; then
@@ -141,15 +147,8 @@ if [ "$action" == 'create' ]
 			exit;
 		else
 			### Delete domain in /etc/hosts
-			newhost=${domain//./\\.}
+			newhost=$domain #${domain//./\\.}
 			sed -i "/$newhost/d" /etc/hosts
-
-			### Delete domain in /mnt/c/Windows/System32/drivers/etc/hosts (Windows Subsytem for Linux)
-			if [ -e /mnt/c/Windows/System32/drivers/etc/hosts ]
-			then
-				newhost=${domain//./\\.}
-				sed -i "/$newhost/d" /mnt/c/Windows/System32/drivers/etc/hosts
-			fi
 
 			### disable website
 			a2dissite $domain
