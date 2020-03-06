@@ -49,9 +49,10 @@ if [ "$rootDir" == "" ]; then
 	
 else
 	if [ "$rootDir" == "." ]; then
-		rootDir="$(pwd)";
+		rootDir="$(pwd)/$domain";
 	fi
 fi
+
 
 if [ "$action" == 'create' ]
 	then
